@@ -195,6 +195,70 @@ export default function FaceRecorder({ onVideoSaved }) {
       console.log("[DEBUG] Database opened successfully");
       const db = event.target.result;
 
+      // Check if the object store exists
+      if (!db.objectStoreNames.contains("videos")) {
+        console.log("[DEBUG] Videos object store doesn't exist - need to recreate database");
+        // Close this connection and reopen with a higher version to trigger upgrade
+        db.close();
+        
+        const upgradeRequest = indexedDB.open("VideoStorage", 2);
+        
+        upgradeRequest.onupgradeneeded = (upgradeEvent) => {
+          console.log("[DEBUG] Upgrading database to create videos store");
+          const upgradeDb = upgradeEvent.target.result;
+          if (!upgradeDb.objectStoreNames.contains("videos")) {
+            upgradeDb.createObjectStore("videos", { keyPath: "key" });
+            console.log("[DEBUG] Created videos object store during upgrade");
+          }
+        };
+        
+        upgradeRequest.onsuccess = (upgradeEvent) => {
+          console.log("[DEBUG] Database upgrade completed, now saving video");
+          const upgradeDb = upgradeEvent.target.result;
+          
+          try {
+            const transaction = upgradeDb.transaction("videos", "readwrite");
+            const store = transaction.objectStore("videos");
+
+            const key = `video_${Date.now()}`;
+            const videoData = { key, blob: videoBlob };
+
+            console.log("[DEBUG] Attempting to store video with key:", key);
+            const addRequest = store.add(videoData);
+
+            addRequest.onsuccess = () => {
+              console.log("[DEBUG] Video saved successfully to IndexedDB");
+              alert("Video saved successfully!");
+              if (props.onVideoSaved) {
+                props.onVideoSaved();
+              }
+            };
+
+            addRequest.onerror = (error) => {
+              console.error("[Storage] Error saving video to IndexedDB:", error);
+              console.error("[DEBUG] Add request error:", addRequest.error);
+              alert("Error saving video: " + (addRequest.error?.message || "Unknown error"));
+            };
+
+            transaction.onerror = (error) => {
+              console.error("[DEBUG] Transaction error:", error);
+              alert("Storage transaction failed");
+            };
+
+          } catch (error) {
+            console.error("[DEBUG] Exception during save:", error);
+            alert("Exception during save: " + error.message);
+          }
+        };
+        
+        upgradeRequest.onerror = (error) => {
+          console.error("[DEBUG] Error during database upgrade:", error);
+          alert("Failed to upgrade storage");
+        };
+        
+        return;
+      }
+
       try {
         const transaction = db.transaction("videos", "readwrite");
         const store = transaction.objectStore("videos");

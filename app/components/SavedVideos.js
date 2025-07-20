@@ -27,7 +27,7 @@ const SavedVideos = forwardRef((props, ref) => {
     }
 
     console.log("[DEBUG] Opening VideoStorage database");
-    const request = indexedDB.open("VideoStorage", 1);
+    const request = indexedDB.open("VideoStorage", 2);
 
     request.onupgradeneeded = (event) => {
       console.log("[DEBUG] Database upgrade needed during load");
@@ -106,7 +106,7 @@ const SavedVideos = forwardRef((props, ref) => {
   }
 
   function deleteVideo(key) {
-    const request = indexedDB.open("VideoStorage", 1);
+    const request = indexedDB.open("VideoStorage", 2);
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
