@@ -159,60 +159,86 @@ export default function FaceRecorder({ onVideoSaved }) {
     recorderRef.current.stop();
   };
 
-  const onSave = (blob) => {
-    // Check if IndexedDB is available
-    if (!window.indexedDB) {
-      console.error("[Storage] IndexedDB not supported in this browser");
+    const onSave = (videoBlob) => {
+    console.log("[DEBUG] onSave called with blob:", videoBlob);
+    console.log("[DEBUG] Blob size:", videoBlob?.size);
+    console.log("[DEBUG] Blob type:", videoBlob?.type);
+    
+    if (!videoBlob || videoBlob.size === 0) {
+      console.error("[Storage] Invalid video blob - cannot save");
+      alert("Error: Invalid video data. Recording may have failed.");
       return;
     }
 
-    const key = `video_${Date.now()}`;
+    // Check if IndexedDB is available
+    if (!window.indexedDB) {
+      console.error("[Storage] IndexedDB not supported in this browser");
+      alert("Error: Browser storage not supported");
+      return;
+    }
+
+    console.log("[DEBUG] Attempting to save to IndexedDB...");
 
     // Open or create IndexedDB database
     const request = indexedDB.open("VideoStorage", 1);
 
     request.onupgradeneeded = (event) => {
+      console.log("[DEBUG] Database upgrade needed");
       const db = event.target.result;
       if (!db.objectStoreNames.contains("videos")) {
-        db.createObjectStore("videos", { keyPath: "key" });
+        const objectStore = db.createObjectStore("videos", { keyPath: "key" });
+        console.log("[DEBUG] Created videos object store");
       }
     };
 
     request.onsuccess = (event) => {
+      console.log("[DEBUG] Database opened successfully");
       const db = event.target.result;
-      
+
       try {
         const transaction = db.transaction("videos", "readwrite");
         const store = transaction.objectStore("videos");
 
-        const videoData = { key, blob };
+        const key = `video_${Date.now()}`;
+        const videoData = { key, blob: videoBlob };
+
+        console.log("[DEBUG] Attempting to store video with key:", key);
         const addRequest = store.add(videoData);
 
         addRequest.onsuccess = () => {
-          if (onVideoSaved) {
-            onVideoSaved({ key });
+          console.log("[DEBUG] Video saved successfully to IndexedDB");
+          alert("Video saved successfully!");
+          if (props.onVideoSaved) {
+            props.onVideoSaved();
           }
         };
 
         addRequest.onerror = (error) => {
           console.error("[Storage] Error saving video to IndexedDB:", error);
+          console.error("[DEBUG] Add request error:", addRequest.error);
+          alert("Error saving video: " + (addRequest.error?.message || "Unknown error"));
         };
 
         transaction.onerror = (error) => {
-          console.error("[Storage] Transaction error:", error);
+          console.error("[DEBUG] Transaction error:", error);
+          alert("Storage transaction failed");
         };
 
       } catch (error) {
-        console.error("[Storage] Exception during transaction:", error);
+        console.error("[DEBUG] Exception during save:", error);
+        alert("Exception during save: " + error.message);
       }
     };
 
     request.onerror = (error) => {
       console.error("[Storage] Error opening IndexedDB:", error);
+      console.error("[DEBUG] Request error details:", request.error);
+      alert("Failed to open storage: " + (request.error?.message || "Unknown error"));
     };
 
     request.onblocked = () => {
       console.error("[Storage] IndexedDB blocked - another tab may have the database open");
+      alert("Storage blocked - close other tabs and try again");
     };
   };
 

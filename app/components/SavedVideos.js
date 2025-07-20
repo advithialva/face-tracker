@@ -15,15 +15,97 @@ const SavedVideos = forwardRef((props, ref) => {
   }, []);
 
   function loadVideos() {
+    console.log("[DEBUG] LoadVideos called");
     setIsLoading(true);
     
     // Check if IndexedDB is available
     if (!window.indexedDB) {
       console.error("[Storage] IndexedDB not supported");
+      alert("IndexedDB not supported in this browser");
       setIsLoading(false);
       return;
     }
 
+    console.log("[DEBUG] Opening VideoStorage database");
+    const request = indexedDB.open("VideoStorage", 1);
+
+    request.onupgradeneeded = (event) => {
+      console.log("[DEBUG] Database upgrade needed during load");
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("videos")) {
+        db.createObjectStore("videos", { keyPath: "key" });
+        console.log("[DEBUG] Created videos object store during load");
+      }
+    };
+
+    request.onsuccess = (event) => {
+      console.log("[DEBUG] Database opened successfully for loading");
+      const db = event.target.result;
+      
+      // Check if the object store exists
+      if (!db.objectStoreNames.contains("videos")) {
+        console.log("[DEBUG] Videos object store doesn't exist yet - no videos to load");
+        setVideos([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        const transaction = db.transaction("videos", "readonly");
+        const store = transaction.objectStore("videos");
+
+        const getAllRequest = store.getAll();
+
+        getAllRequest.onsuccess = () => {
+          console.log("[DEBUG] Found", getAllRequest.result.length, "videos in storage");
+          const videos = getAllRequest.result.map((video) => {
+            console.log("[DEBUG] Processing video:", video.key, "size:", video.blob?.size);
+            return {
+              key: video.key,
+              data: URL.createObjectURL(video.blob),
+              size: video.blob.size,
+              timestamp: parseInt(video.key.split('_')[1])
+            };
+          });
+          setVideos(videos.reverse());
+          setIsLoading(false);
+        };
+
+        getAllRequest.onerror = (error) => {
+          console.error("[Storage] Error loading videos from IndexedDB:", error);
+          console.error("[DEBUG] GetAll error:", getAllRequest.error);
+          alert("Error loading videos: " + (getAllRequest.error?.message || "Unknown error"));
+          setIsLoading(false);
+        };
+
+        transaction.onerror = (error) => {
+          console.error("[Storage] Transaction error while loading:", error);
+          alert("Loading transaction failed");
+          setIsLoading(false);
+        };
+
+      } catch (error) {
+        console.error("[Storage] Exception during video loading:", error);
+        alert("Exception during loading: " + error.message);
+        setIsLoading(false);
+      }
+    };
+
+    request.onerror = (error) => {
+      console.error("[Storage] Error opening IndexedDB for loading:", error);
+      console.error("[DEBUG] Load request error:", request.error);
+      alert("Failed to open storage for loading: " + (request.error?.message || "Unknown error"));
+      setIsLoading(false);
+    };
+
+    request.onblocked = () => {
+      console.error("[Storage] IndexedDB blocked during loading");
+      alert("Storage blocked during loading");
+      setIsLoading(false);
+    };
+  }
+
+  function deleteVideo(key) {
     const request = indexedDB.open("VideoStorage", 1);
 
     request.onupgradeneeded = (event) => {
@@ -36,55 +118,12 @@ const SavedVideos = forwardRef((props, ref) => {
     request.onsuccess = (event) => {
       const db = event.target.result;
       
-      try {
-        const transaction = db.transaction("videos", "readonly");
-        const store = transaction.objectStore("videos");
-
-        const getAllRequest = store.getAll();
-
-        getAllRequest.onsuccess = () => {
-          const videos = getAllRequest.result.map((video) => ({
-            key: video.key,
-            data: URL.createObjectURL(video.blob),
-            size: video.blob.size,
-            timestamp: parseInt(video.key.split('_')[1])
-          }));
-          setVideos(videos.reverse());
-          setIsLoading(false);
-        };
-
-        getAllRequest.onerror = (error) => {
-          console.error("[Storage] Error loading videos from IndexedDB:", error);
-          setIsLoading(false);
-        };
-
-        transaction.onerror = (error) => {
-          console.error("[Storage] Transaction error while loading:", error);
-          setIsLoading(false);
-        };
-
-      } catch (error) {
-        console.error("[Storage] Exception during video loading:", error);
-        setIsLoading(false);
+      // Check if the object store exists
+      if (!db.objectStoreNames.contains("videos")) {
+        console.log("[DEBUG] No videos store exists - nothing to delete");
+        return;
       }
-    };
 
-    request.onerror = (error) => {
-      console.error("[Storage] Error opening IndexedDB for loading:", error);
-      setIsLoading(false);
-    };
-
-    request.onblocked = () => {
-      console.error("[Storage] IndexedDB blocked during loading");
-      setIsLoading(false);
-    };
-  }
-
-  function deleteVideo(key) {
-    const request = indexedDB.open("VideoStorage", 1);
-
-    request.onsuccess = (event) => {
-      const db = event.target.result;
       const transaction = db.transaction("videos", "readwrite");
       const store = transaction.objectStore("videos");
 
