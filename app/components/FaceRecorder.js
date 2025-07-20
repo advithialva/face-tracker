@@ -31,9 +31,7 @@ export default function FaceRecorder({ onVideoSaved }) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           setIsReady(true);
-          console.log("[Webcam] Ready: videoWidth", videoRef.current.videoWidth);
         };
-        console.log("[Webcam] Video stream started.");
       } catch (err) {
         console.error("[Webcam] Could not get video stream:", err);
       }
@@ -106,9 +104,6 @@ export default function FaceRecorder({ onVideoSaved }) {
         const ctx = mergeCanvas.getContext("2d");
         ctx.drawImage(video, 0, 0, mergeCanvas.width, mergeCanvas.height);
         ctx.drawImage(overlay, 0, 0, mergeCanvas.width, mergeCanvas.height);
-        if (frame % 60 === 0) {
-          console.log("[mergeCanvas] Drawing frame", frame, new Date().toISOString());
-        }
         frame++;
       }
       drawId = requestAnimationFrame(drawToMergeCanvas);
@@ -122,13 +117,10 @@ export default function FaceRecorder({ onVideoSaved }) {
     let stream;
     if (USE_CANVAS_RECORD) {
       stream = mergeCanvasRef.current.captureStream();
-      console.log("[Recorder] Recording from mergeCanvas (with overlay).");
     } else {
       stream = videoRef.current.srcObject;
-      console.log("[Recorder] Recording directly from webcam.");
     }
 
-    console.log("[Recorder] Stream details:", stream);
     if (!stream) {
       console.error("[Recorder] No valid stream available for recording.");
       return;
@@ -143,38 +135,37 @@ export default function FaceRecorder({ onVideoSaved }) {
     const localChunks = [];
     recorderRef.current.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) {
-        console.log("[Recorder] Data available, chunk size:", e.data.size);
         localChunks.push(e.data);
-        console.log("[Recorder] Updated localChunks:", localChunks);
       }
     };
     recorderRef.current.onstop = () => {
-      console.log("[Recorder] Chunks before Blob creation:", localChunks);
       if (localChunks.length === 0) {
         console.error("[Recorder] No chunks available for Blob creation.");
         return;
       }
       const blob = new Blob(localChunks, { type: "video/webm" });
-      console.log("[Recorder] Stopped. Blob length:", blob.size, "Chunks:", localChunks.length);
       if (blob.size > 0) {
-        // Save directly using onSave
         onSave(blob);
       } else {
         console.error("No video data recorded — try recording longer, or check debug logs.");
       }
     };
     recorderRef.current.start();
-    console.log("[Recorder] Recording started.");
   };
 
   const stop = () => {
     setRecording(false);
     if (!recorderRef.current) return;
     recorderRef.current.stop();
-    console.log("[Recorder] Recording stopped.");
   };
 
   const onSave = (blob) => {
+    // Check if IndexedDB is available
+    if (!window.indexedDB) {
+      console.error("[Storage] IndexedDB not supported in this browser");
+      return;
+    }
+
     const key = `video_${Date.now()}`;
 
     // Open or create IndexedDB database
@@ -189,25 +180,39 @@ export default function FaceRecorder({ onVideoSaved }) {
 
     request.onsuccess = (event) => {
       const db = event.target.result;
-      const transaction = db.transaction("videos", "readwrite");
-      const store = transaction.objectStore("videos");
+      
+      try {
+        const transaction = db.transaction("videos", "readwrite");
+        const store = transaction.objectStore("videos");
 
-      const videoData = { key, blob };
-      const addRequest = store.add(videoData);
+        const videoData = { key, blob };
+        const addRequest = store.add(videoData);
 
-      addRequest.onsuccess = () => {
-        if (onVideoSaved) {
-          onVideoSaved({ key });
-        }
-      };
+        addRequest.onsuccess = () => {
+          if (onVideoSaved) {
+            onVideoSaved({ key });
+          }
+        };
 
-      addRequest.onerror = () => {
-        console.error("Error saving video to IndexedDB.");
-      };
+        addRequest.onerror = (error) => {
+          console.error("[Storage] Error saving video to IndexedDB:", error);
+        };
+
+        transaction.onerror = (error) => {
+          console.error("[Storage] Transaction error:", error);
+        };
+
+      } catch (error) {
+        console.error("[Storage] Exception during transaction:", error);
+      }
     };
 
-    request.onerror = () => {
-      console.error("Error opening IndexedDB.");
+    request.onerror = (error) => {
+      console.error("[Storage] Error opening IndexedDB:", error);
+    };
+
+    request.onblocked = () => {
+      console.error("[Storage] IndexedDB blocked - another tab may have the database open");
     };
   };
 

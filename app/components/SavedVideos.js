@@ -16,34 +16,66 @@ const SavedVideos = forwardRef((props, ref) => {
 
   function loadVideos() {
     setIsLoading(true);
+    
+    // Check if IndexedDB is available
+    if (!window.indexedDB) {
+      console.error("[Storage] IndexedDB not supported");
+      setIsLoading(false);
+      return;
+    }
+
     const request = indexedDB.open("VideoStorage", 1);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("videos")) {
+        db.createObjectStore("videos", { keyPath: "key" });
+      }
+    };
 
     request.onsuccess = (event) => {
       const db = event.target.result;
-      const transaction = db.transaction("videos", "readonly");
-      const store = transaction.objectStore("videos");
+      
+      try {
+        const transaction = db.transaction("videos", "readonly");
+        const store = transaction.objectStore("videos");
 
-      const getAllRequest = store.getAll();
+        const getAllRequest = store.getAll();
 
-      getAllRequest.onsuccess = () => {
-        const videos = getAllRequest.result.map((video) => ({
-          key: video.key,
-          data: URL.createObjectURL(video.blob),
-          size: video.blob.size,
-          timestamp: parseInt(video.key.split('_')[1])
-        }));
-        setVideos(videos.reverse());
+        getAllRequest.onsuccess = () => {
+          const videos = getAllRequest.result.map((video) => ({
+            key: video.key,
+            data: URL.createObjectURL(video.blob),
+            size: video.blob.size,
+            timestamp: parseInt(video.key.split('_')[1])
+          }));
+          setVideos(videos.reverse());
+          setIsLoading(false);
+        };
+
+        getAllRequest.onerror = (error) => {
+          console.error("[Storage] Error loading videos from IndexedDB:", error);
+          setIsLoading(false);
+        };
+
+        transaction.onerror = (error) => {
+          console.error("[Storage] Transaction error while loading:", error);
+          setIsLoading(false);
+        };
+
+      } catch (error) {
+        console.error("[Storage] Exception during video loading:", error);
         setIsLoading(false);
-      };
-
-      getAllRequest.onerror = () => {
-        console.error("Error loading videos from IndexedDB.");
-        setIsLoading(false);
-      };
+      }
     };
 
-    request.onerror = () => {
-      console.error("Error opening IndexedDB.");
+    request.onerror = (error) => {
+      console.error("[Storage] Error opening IndexedDB for loading:", error);
+      setIsLoading(false);
+    };
+
+    request.onblocked = () => {
+      console.error("[Storage] IndexedDB blocked during loading");
       setIsLoading(false);
     };
   }
@@ -135,8 +167,8 @@ const SavedVideos = forwardRef((props, ref) => {
                   className="w-full h-full object-cover cursor-pointer"
                   preload="metadata"
                   onClick={() => setSelectedVideo(video)}
-                  onError={(e) => {
-                    console.error(`Video playback error for ${video.key}:`, e.target.error);
+                  onError={() => {
+                    console.error("Video playback failed");
                   }}
                 />
                 <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
@@ -162,7 +194,6 @@ const SavedVideos = forwardRef((props, ref) => {
                   </p>
                 </div>
                 
-                {/* Action Buttons */}
                 <div className="flex gap-2">
                   <button
                     onClick={() => downloadVideo(video)}
@@ -221,8 +252,8 @@ const SavedVideos = forwardRef((props, ref) => {
                 controls
                 autoPlay
                 className="w-full h-full"
-                onError={(e) => {
-                  console.error(`Video playback error:`, e.target.error);
+                onError={() => {
+                  console.error("Video playback failed");
                 }}
               />
             </div>

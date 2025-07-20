@@ -9,26 +9,6 @@ const FaceRecorder = dynamic(() => import("./components/FaceRecorder"), { ssr: f
 export default function Home() {
   const savedVideosRef = useRef(null);
 
-  const saveToLocal = (blob) => {
-    if (!blob || blob.size === 0) {
-      console.error("Recording is empty! Not saving.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = function () {
-      const base64 = reader.result;
-      if (typeof base64 === "string" && base64.startsWith("data:video/webm")) {
-        localStorage.setItem(`video_${Date.now()}`, base64);
-      } else {
-        console.error("Saved value does not look like a valid data URL!");
-      }
-    };
-    reader.onerror = () => {
-      console.error("FileReader failed.");
-    };
-    reader.readAsDataURL(blob);
-  };
-
   const handleVideoSaved = () => {
     if (savedVideosRef.current) {
       savedVideosRef.current.loadVideos();
@@ -57,7 +37,7 @@ export default function Home() {
           {/* Recording Section */}
           <section>
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-300 p-6">
-              <FaceRecorder onSave={saveToLocal} onVideoSaved={handleVideoSaved} />
+              <FaceRecorder onVideoSaved={handleVideoSaved} />
             </div>
           </section>
 
