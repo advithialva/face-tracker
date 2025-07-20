@@ -170,6 +170,9 @@ export default function FaceRecorder({ onVideoSaved }) {
       return;
     }
 
+    // Store the callback reference for use in nested functions
+    const onVideoSavedCallback = props.onVideoSaved;
+
     // Check if IndexedDB is available
     if (!window.indexedDB) {
       console.error("[Storage] IndexedDB not supported in this browser");
@@ -229,8 +232,8 @@ export default function FaceRecorder({ onVideoSaved }) {
             addRequest.onsuccess = () => {
               console.log("[DEBUG] Video saved successfully to IndexedDB");
               alert("Video saved successfully!");
-              if (props.onVideoSaved) {
-                props.onVideoSaved();
+              if (onVideoSavedCallback) {
+                onVideoSavedCallback();
               }
             };
 
@@ -272,8 +275,8 @@ export default function FaceRecorder({ onVideoSaved }) {
         addRequest.onsuccess = () => {
           console.log("[DEBUG] Video saved successfully to IndexedDB");
           alert("Video saved successfully!");
-          if (props.onVideoSaved) {
-            props.onVideoSaved();
+          if (onVideoSavedCallback) {
+            onVideoSavedCallback();
           }
         };
 
