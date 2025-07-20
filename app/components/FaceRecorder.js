@@ -160,13 +160,8 @@ export default function FaceRecorder({ onVideoSaved }) {
   };
 
     const onSave = (videoBlob) => {
-    console.log("[DEBUG] onSave called with blob:", videoBlob);
-    console.log("[DEBUG] Blob size:", videoBlob?.size);
-    console.log("[DEBUG] Blob type:", videoBlob?.type);
-    
     if (!videoBlob || videoBlob.size === 0) {
       console.error("[Storage] Invalid video blob - cannot save");
-      alert("Error: Invalid video data. Recording may have failed.");
       return;
     }
 
@@ -176,47 +171,37 @@ export default function FaceRecorder({ onVideoSaved }) {
     // Check if IndexedDB is available
     if (!window.indexedDB) {
       console.error("[Storage] IndexedDB not supported in this browser");
-      alert("Error: Browser storage not supported");
       return;
     }
-
-    console.log("[DEBUG] Attempting to save to IndexedDB...");
 
     // Open or create IndexedDB database
     const request = indexedDB.open("VideoStorage", 2);
 
     request.onupgradeneeded = (event) => {
-      console.log("[DEBUG] Database upgrade needed");
       const db = event.target.result;
       if (!db.objectStoreNames.contains("videos")) {
-        const objectStore = db.createObjectStore("videos", { keyPath: "key" });
-        console.log("[DEBUG] Created videos object store");
+        db.createObjectStore("videos", { keyPath: "key" });
       }
     };
 
     request.onsuccess = (event) => {
-      console.log("[DEBUG] Database opened successfully");
       const db = event.target.result;
 
       // Check if the object store exists
       if (!db.objectStoreNames.contains("videos")) {
-        console.log("[DEBUG] Videos object store doesn't exist - need to recreate database");
         // Close this connection and reopen with a higher version to trigger upgrade
         db.close();
         
         const upgradeRequest = indexedDB.open("VideoStorage", 3);
         
         upgradeRequest.onupgradeneeded = (upgradeEvent) => {
-          console.log("[DEBUG] Upgrading database to create videos store");
           const upgradeDb = upgradeEvent.target.result;
           if (!upgradeDb.objectStoreNames.contains("videos")) {
             upgradeDb.createObjectStore("videos", { keyPath: "key" });
-            console.log("[DEBUG] Created videos object store during upgrade");
           }
         };
         
         upgradeRequest.onsuccess = (upgradeEvent) => {
-          console.log("[DEBUG] Database upgrade completed, now saving video");
           const upgradeDb = upgradeEvent.target.result;
           
           try {
@@ -226,12 +211,9 @@ export default function FaceRecorder({ onVideoSaved }) {
             const key = `video_${Date.now()}`;
             const videoData = { key, blob: videoBlob };
 
-            console.log("[DEBUG] Attempting to store video with key:", key);
             const addRequest = store.add(videoData);
 
             addRequest.onsuccess = () => {
-              console.log("[DEBUG] Video saved successfully to IndexedDB");
-              alert("Video saved successfully!");
               if (onVideoSavedCallback) {
                 onVideoSavedCallback();
               }
@@ -239,24 +221,19 @@ export default function FaceRecorder({ onVideoSaved }) {
 
             addRequest.onerror = (error) => {
               console.error("[Storage] Error saving video to IndexedDB:", error);
-              console.error("[DEBUG] Add request error:", addRequest.error);
-              alert("Error saving video: " + (addRequest.error?.message || "Unknown error"));
             };
 
             transaction.onerror = (error) => {
-              console.error("[DEBUG] Transaction error:", error);
-              alert("Storage transaction failed");
+              console.error("[Storage] Transaction error:", error);
             };
 
           } catch (error) {
-            console.error("[DEBUG] Exception during save:", error);
-            alert("Exception during save: " + error.message);
+            console.error("[Storage] Exception during save:", error);
           }
         };
         
         upgradeRequest.onerror = (error) => {
-          console.error("[DEBUG] Error during database upgrade:", error);
-          alert("Failed to upgrade storage");
+          console.error("[Storage] Error during database upgrade:", error);
         };
         
         return;
@@ -269,12 +246,9 @@ export default function FaceRecorder({ onVideoSaved }) {
         const key = `video_${Date.now()}`;
         const videoData = { key, blob: videoBlob };
 
-        console.log("[DEBUG] Attempting to store video with key:", key);
         const addRequest = store.add(videoData);
 
         addRequest.onsuccess = () => {
-          console.log("[DEBUG] Video saved successfully to IndexedDB");
-          alert("Video saved successfully!");
           if (onVideoSavedCallback) {
             onVideoSavedCallback();
           }
@@ -282,30 +256,23 @@ export default function FaceRecorder({ onVideoSaved }) {
 
         addRequest.onerror = (error) => {
           console.error("[Storage] Error saving video to IndexedDB:", error);
-          console.error("[DEBUG] Add request error:", addRequest.error);
-          alert("Error saving video: " + (addRequest.error?.message || "Unknown error"));
         };
 
         transaction.onerror = (error) => {
-          console.error("[DEBUG] Transaction error:", error);
-          alert("Storage transaction failed");
+          console.error("[Storage] Transaction error:", error);
         };
 
       } catch (error) {
-        console.error("[DEBUG] Exception during save:", error);
-        alert("Exception during save: " + error.message);
+        console.error("[Storage] Exception during save:", error);
       }
     };
 
     request.onerror = (error) => {
       console.error("[Storage] Error opening IndexedDB:", error);
-      console.error("[DEBUG] Request error details:", request.error);
-      alert("Failed to open storage: " + (request.error?.message || "Unknown error"));
     };
 
     request.onblocked = () => {
       console.error("[Storage] IndexedDB blocked - another tab may have the database open");
-      alert("Storage blocked - close other tabs and try again");
     };
   };
 
