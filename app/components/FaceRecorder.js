@@ -180,7 +180,7 @@ export default function FaceRecorder({ onVideoSaved }) {
     console.log("[DEBUG] Attempting to save to IndexedDB...");
 
     // Open or create IndexedDB database
-    const request = indexedDB.open("VideoStorage", 1);
+    const request = indexedDB.open("VideoStorage", 2);
 
     request.onupgradeneeded = (event) => {
       console.log("[DEBUG] Database upgrade needed");
@@ -201,7 +201,7 @@ export default function FaceRecorder({ onVideoSaved }) {
         // Close this connection and reopen with a higher version to trigger upgrade
         db.close();
         
-        const upgradeRequest = indexedDB.open("VideoStorage", 2);
+        const upgradeRequest = indexedDB.open("VideoStorage", 3);
         
         upgradeRequest.onupgradeneeded = (upgradeEvent) => {
           console.log("[DEBUG] Upgrading database to create videos store");
