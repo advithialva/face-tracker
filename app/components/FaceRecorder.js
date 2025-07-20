@@ -171,7 +171,7 @@ export default function FaceRecorder({ onVideoSaved }) {
     }
 
     // Store the callback reference for use in nested functions
-    const onVideoSavedCallback = props.onVideoSaved;
+    const onVideoSavedCallback = onVideoSaved;
 
     // Check if IndexedDB is available
     if (!window.indexedDB) {
